@@ -28,7 +28,9 @@
     "messina": "0.1.2",
     "newrelic": "1.4.0",
     "noxmox": "0.2.4",
-    "webmaker-auth": "0.0.14"
+    "webmaker-auth": "0.0.14",
+    "mime": "~1.2.11",
+    "filer-s3": "0.0.1"
   },
   "devDependencies": {
     "grunt": "~0.4.1",

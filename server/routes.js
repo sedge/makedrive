@@ -5,6 +5,10 @@
 module.exports = function( knoxClient ) {
 
   var version = require( "../package" ).version;
+  var S3Provider = require("filer-s3");
+  var mime = require("mime");
+  var https = require('https'); // this is for "put" it doesn't work with http as I don't have the logic for that
+  var S3Options = { bucket: "<bucket_name>", key: "<key>", secret: "<secret>" };
 
   function jsonError( res, code, msg, err ) {
     res.json( code, {
@@ -19,63 +23,68 @@ module.exports = function( knoxClient ) {
       res.send( "MakeDrive: https://wiki.mozilla.org/Webmaker/MakeDrive" );
     },
 
-    get: function( req, res ) {
-      // TODO: figure out proper errors to bubble up, see:
-      // http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-      knoxClient.get( req.params.key )
-        .on( "error",  done )
-        .on( "response", function( response ) {
-          // TODO: figure out right way to return the data (json vs. binary)
-          var data = '';
-          response.on( "data", function( chunk ) {
-            data += chunk;
-          }).on( "end", function() {
-            res.json( data );
-          }).on('error', function( err ) {
-            jsonError( res, 400, "Unable to get value.", err );
+    // just using it to clear stuff right now
+    clear: function(req, res) {
+      var provider = new S3Provider({name: req.session.user.username, keyPrefix: req.session.user.username });;
+      provider.open(S3Options, function(error, firstAccess) {
+        if (error) {
+            throw error;
+          }
+        var context = provider.getReadWriteContext();
+        context.clear(function(error) {
+          if (error) {
+            throw error;
+          }
+          res.end();
+        });
+      });
+    },
+    // putting some stuff to test with get() method
+    put: function(req, res) {
+      var pathToUrl = req.query.url;
+      var provider = new S3Provider({name: req.session.user.username, keyPrefix: req.session.user.username });;
+      provider.open(S3Options, function(error, firstAccess) {
+        if (error) {
+          throw error;
+        }
+        var context = provider.getReadWriteContext();
+        https.get(pathToUrl, function(response) {
+          var chunks = [];
+          response.on('data', function (chunk) {
+            chunks = chunks.concat(chunk);
+          }).on('end', function () {
+            var newBuffer = new Buffer.concat(chunks);
+            value = toArrayBuffer(newBuffer);
+            context.put(pathToUrl, value, function(error) {
+              if(error) {
+                console.log(error);
+              }
+              res.end();
+            });
           });
-        })
-        .end();
+        });
+      });
     },
-
-    put: function( req, res ) {
-      // TODO: deal with binary data, file parts, ???
-      // TODO: figure out proper errors to bubble up, see:
-      // http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-      var data = req.body.value,
-          headers = {
-            'x-amz-acl': 'public-read', // TODO: not sure if we need this...
-            'Content-Length': Buffer.byteLength( data,'utf8' ),
-            'Content-Type': 'text/plain;charset=UTF-8'
-          };
-
-      knoxClient.put( req.params.key, headers )
-        .on( "error", function( err ) {
-          jsonError( res, 500, "Error storing value", err );
-        })
-        .on( "response", function(res) {
-          if (res.statusCode !== 200) {
-            return jsonError( res, 500, "Error storing value", err );
+    get: function(req, res) {
+      var pathToFile = req.query.file;
+      var provider = new S3Provider({name: req.session.user.username, keyPrefix: req.session.user.username });;
+      provider.open(S3Options, function(error, firstAccess) {
+        if (error) {
+          throw error;
+        }
+        var context = provider.getReadWriteContext();
+        context.get(pathToFile, function(error, result) {
+          if(error) {
+            res.writeHead(404, "Not found", {'Content-Type': 'text/html'});
+            res.write(error);
+          } else {
+            var val = toBuffer(result);
+            res.writeHead(200, "OK", {'Content-Type': mime.lookup(pathToFile)});
+            res.write(val);
           }
-          res.json( 200 );
-        })
-        .end( data );
-    },
-
-    del: function( req, res ) {
-      // TODO: figure out proper errors to bubble up, see:
-      // http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-      knoxClient.del( req.params.key )
-        .on( "error", function( err ) {
-          jsonError( res, 500, "Error removing key/value pair", err );
-        })
-        .on( "response", function(res) {
-          if (res.statusCode !== 200) {
-            return jsonError( res, 500, "Error removing key/value pair", err );
-          }
-          res.json( 200 );
-        })
-        .end();
+          return res.end();
+        });
+      });
     },
 
     healthcheck: function( req, res ) {
