@@ -9,6 +9,7 @@ module.exports = function( knoxClient ) {
   var mime = require("mime");
   var https = require('https'); // this is for "put" it doesn't work with http as I don't have the logic for that
   var S3Options = { bucket: "<bucket_name>", key: "<key>", secret: "<secret>" };
+  var util = require("./util");
 
   function jsonError( res, code, msg, err ) {
     res.json( code, {
@@ -54,7 +55,7 @@ module.exports = function( knoxClient ) {
             chunks = chunks.concat(chunk);
           }).on('end', function () {
             var newBuffer = new Buffer.concat(chunks);
-            value = toArrayBuffer(newBuffer);
+            value = util.toArrayBuffer(newBuffer);
             context.put(pathToUrl, value, function(error) {
               if(error) {
                 console.log(error);
@@ -78,7 +79,7 @@ module.exports = function( knoxClient ) {
             res.writeHead(404, "Not found", {'Content-Type': 'text/html'});
             res.write(error);
           } else {
-            var val = toBuffer(result);
+            var val = util.toBuffer(result);
             res.writeHead(200, "OK", {'Content-Type': mime.lookup(pathToFile)});
             res.write(val);
           }
