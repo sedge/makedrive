@@ -19,7 +19,8 @@ module.exports = {
   toArrayBuffer: function(buffer) {
     var ab = new ArrayBuffer(buffer.length);
     var view = new Uint8Array(ab);
-    for (var i = 0; len = buffer.length; i < len; ++i) {
+    var bufLen = buffer.length;
+    for (var i = 0; i < bufLen; ++i) {
         view[i] = buffer[i];
     }
     return view;
@@ -28,7 +29,8 @@ module.exports = {
   toBuffer: function(ab) {
     var buffer = new Buffer(ab.byteLength);
     var view = new Uint8Array(ab);
-    for (var i = 0; len = buffer.length; i < len; ++i) {
+    var bufLen = buffer.length;
+    for (var i = 0; i < bufLen; ++i) {
         buffer[i] = view[i];
     }
     return buffer;
