@@ -42,7 +42,7 @@ module.exports = function( knoxClient ) {
     },
     // putting some stuff to test with get() method
     put: function(req, res) {
-      var pathToUrl = req.query.url;
+      var pathToUrl = req.path.replace('/upload/','');
       var provider = new S3Provider({name: req.session.user.username, keyPrefix: req.session.user.username });;
       provider.open(S3Options, function(error, firstAccess) {
         if (error) {
@@ -67,7 +67,7 @@ module.exports = function( knoxClient ) {
       });
     },
     get: function(req, res) {
-      var pathToFile = req.query.file;
+      var pathToFile = req.path.replace('/get/','');
       var provider = new S3Provider({name: req.session.user.username, keyPrefix: req.session.user.username });;
       provider.open(S3Options, function(error, firstAccess) {
         if (error) {
