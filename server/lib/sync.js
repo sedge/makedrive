@@ -75,7 +75,7 @@ function createError(code, message) {
  * Constructor
  */
 function Sync( username, sessionId ) {
-  var id = this.sessionId = sessionId
+  var id = this.sessionId = sessionId;
   this.username = username;
 
   // Ensure the current user exists in our datastore and
@@ -90,15 +90,9 @@ function Sync( username, sessionId ) {
     keyPrefix: this.username,
     name: this.username
   });
-  var that = this;
   // TODO: Decide what our root path will be (currently /)
-  this.fs.mkdir("/", function( err ) {
-    if ( err && err.code !== 'EEXIST' ) {
-      console.err( "Error creating the user's root directory: " + err );
-    }
-    that.state = Sync.CONNECTED;
-    that.path = '/';
-  });
+  this.state = Sync.CONNECTED;
+  this.path = '/';
 }
 
 // Plug into this user's server-side filesystem,

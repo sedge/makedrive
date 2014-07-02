@@ -7,6 +7,8 @@ var SyncMessage = require('../../server/lib/syncmessage');
 var rsync = require('../../lib/rsync');
 var rsyncOptions = require('../../lib/constants').rsyncDefaults;
 var Buffer = require('filer').Buffer;
+var uuid = require( "node-uuid" );
+
 
 var serverURL = 'http://0.0.0.0:9090',
     socketURL = serverURL.replace( 'http', 'ws' );
@@ -71,13 +73,11 @@ if(!uploadFound) {
   });
 }
 
-var seed = Date.now();
-
 /**
  * Misc Helpers
  */
 function uniqueUsername() {
-  return 'user' + seed++;
+  return 'user' + uuid.v4();
 }
 
 function upload(username, path, contents, callback) {
@@ -115,57 +115,6 @@ function resolveFromJSON(obj) {
 /**
  * Connection Helpers
  */
-//function getConnectionID(options, callback){
-//  if(!(options && options.jar)) {
-//    throw('Expected options.jar');
-//  }
-//
-//  var headers = {
-//   'Accept-Encoding': 'zlib',
-//   'Content-Type': 'text/event-stream'
-//  };
-//  var stream = request({
-//    url: serverURL + '/api/sync/updates',
-//    jar: options.jar,
-//    headers: headers
-//  });
-//  var callbackCalled = false;
-//
-//  var data = '';
-//  stream.on('data', function(chunk) {
-//    if(callbackCalled) {
-//      return;
-//    }
-//
-//    data += chunk;
-//
-//    // Look for something like data: {"syncId":"91842458-d5f7-486f-9297-52e460c3ab38"}
-//    var match = /data: {"syncId"\s*:\s*"(\w{8}(-\w{4}){3}-\w{12}?)"}/.exec(data);
-//    if(match) {
-//      callbackCalled = true;
-//      callback(null, {
-//        close: function() {
-//          // HTML5 provides an easy way to
-//          // close SSE connections, but this doesn't
-//          // exist in NodeJS, so force it.
-//          stream.req.abort();
-//        },
-//        syncId: match[1]
-//      });
-//    }
-//  });
-//
-//  stream.on('end', function() {
-//    if(callbackCalled) {
-//      return;
-//    }
-//
-//    callbackCalled = true;
-//    stream = null;
-//    callback('Remote hung-up');
-//  });
-//}
-
 function getWebsocketToken(options, callback){
   // Fail early and noisily when missing options.jar
   if(!(options && options.jar)) {
@@ -192,7 +141,7 @@ function authenticate(options, callback){
     options = {};
   }
 
-  options.jar = jar();
+  options.jar = options.jar || jar();
   options.username = options.username || uniqueUsername();
   options.logoutUser = function (cb) {
     request({
@@ -258,7 +207,7 @@ function jar() {
  */
 function openSocket(socketData, options) {
   if (typeof options !== "object") {
-    if (socketData && !socketData.syncId) {
+    if (socketData && !socketData.token) {
       options = socketData;
       socketData = null;
     }
@@ -287,7 +236,6 @@ function openSocket(socketData, options) {
   if (socketData) {
     options.onOpen = function() {
       socket.send(JSON.stringify({
-        syncId: socketData.syncId,
         token: socketData.token
       }));
     };
@@ -497,32 +445,32 @@ function prepareSync(finalStep, username, socketPackage, cb){
   var Path = require('path');
   var content = fs.readFileSync(Path.resolve(__dirname, '../test-files/test.txt'), {encoding: null});
 
-  // Set up src filesystem
+  // Set up server filesystem
   upload(username, '/test.txt', content, function() {
-    // Set up dest filesystem
-    var fs = filesystem.create({
-      keyPrefix: username,
-      name: username
+    // Set up client filesystem
+    var filerFs = filesystem.create({
+      keyPrefix: username + "Client",
+      name: username + "Client"
     });
 
     // Complete required sync steps
     if (!finalStep) {
-      return cb(null, fs);
+      return cb(null, filerFs);
     }
     syncSteps.srcList(socketPackage, function(data1) {
       if (finalStep == "srcList") {
-        return cb(data1, fs);
+        return cb(data1, filerFs);
       }
       syncSteps.checksums(socketPackage, data1, function(data2) {
         if (finalStep == "checksums") {
-          return cb(data2, fs);
+          return cb(data2, filerFs);
         }
-        syncSteps.diffs(socketPackage, data2, fs, function(data3) {
+        syncSteps.diffs(socketPackage, data2, filerFs, function(data3) {
           if (finalStep == "diffs") {
-            return cb(data3, fs);
+            return cb(data3, filerFs);
           }
-          syncSteps.patch(socketPackage, data3, fs, function(data4) {
-            cb(data4, fs);
+          syncSteps.patch(socketPackage, data3, filerFs, function(data4) {
+            cb(data4, filerFs);
           });
         });
       });

@@ -192,10 +192,11 @@ describe('Test util.js', function(){
     });
     it('util.openSocket should automatically generate an onOpen handler to send syncId to the server when passed syncId', function(done) {
       util.authenticatedConnection({ done: done }, function(err, result) {
-        var socketPackage = util.openSocket({
-          syncId: result.syncId,
+        var socketData = {
           token: result.token
-        }, {
+        }
+
+        var socketPackage = util.openSocket(socketData, {
           onMessage: function(message){
             expect(message).to.equal(JSON.stringify(new SyncMessage(SyncMessage.RESPONSE, SyncMessage.ACK)));
 
@@ -260,10 +261,12 @@ describe('Test util.js', function(){
   describe('[Sync Helpers]', function(done) {
     it('util.prepareSync should prepare a filesystem for the passed user when finalStep isn\'t specified', function(done) {
       util.authenticatedConnection({done: done}, function(err, result) {
+        var socketData = {
+          token: result.token
+        };
+
         var username = util.username();
-        var socketPackage = util.openSocket({
-          syncId: result.syncId, token: result.token
-        }, {
+        var socketPackage = util.openSocket(socketData, {
           onMessage: function(message) {
             expect(message).to.equal(JSON.stringify(SyncMessage.Response.ACK));
 
@@ -279,7 +282,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -303,7 +305,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -325,7 +326,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -346,7 +346,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -365,7 +364,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -388,7 +386,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -409,7 +406,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
@@ -432,7 +428,6 @@ describe('Test util.js', function(){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
         var socketData = {
-          syncId: result.syncId,
           token: result.token
         };
 
