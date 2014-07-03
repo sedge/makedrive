@@ -62,7 +62,7 @@ function authorizeToken(token) {
       index;
 
   // Token isn't valid?
-  if (username == null) {
+  if (username === null) {
     return null;
   }
 

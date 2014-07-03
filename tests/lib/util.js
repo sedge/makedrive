@@ -9,7 +9,6 @@ var rsyncOptions = require('../../lib/constants').rsyncDefaults;
 var Buffer = require('filer').Buffer;
 var uuid = require( "node-uuid" );
 
-
 var serverURL = 'http://0.0.0.0:9090',
     socketURL = serverURL.replace( 'http', 'ws' );
 
@@ -448,29 +447,29 @@ function prepareSync(finalStep, username, socketPackage, cb){
   // Set up server filesystem
   upload(username, '/test.txt', content, function() {
     // Set up client filesystem
-    var filerFs = filesystem.create({
-      keyPrefix: username + "Client",
-      name: username + "Client"
+    var fs = filesystem.create({
+      keyPrefix: username,
+      name: username
     });
 
     // Complete required sync steps
     if (!finalStep) {
-      return cb(null, filerFs);
+      return cb(null, fs);
     }
     syncSteps.srcList(socketPackage, function(data1) {
       if (finalStep == "srcList") {
-        return cb(data1, filerFs);
+        return cb(data1, fs);
       }
       syncSteps.checksums(socketPackage, data1, function(data2) {
         if (finalStep == "checksums") {
-          return cb(data2, filerFs);
+          return cb(data2, fs);
         }
-        syncSteps.diffs(socketPackage, data2, filerFs, function(data3) {
+        syncSteps.diffs(socketPackage, data2, fs, function(data3) {
           if (finalStep == "diffs") {
-            return cb(data3, filerFs);
+            return cb(data3, fs);
           }
-          syncSteps.patch(socketPackage, data3, filerFs, function(data4) {
-            cb(data4, filerFs);
+          syncSteps.patch(socketPackage, data3, fs, function(data4) {
+            cb(data4, fs);
           });
         });
       });

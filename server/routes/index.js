@@ -2,7 +2,6 @@
 var middleware = require( './middleware' ),
     routes = require( './routes' ),
     Sync = require( '../lib/sync'),
-    util = require( '../lib/util' ),
     formidable = require('formidable'),
     Buffer = require('filer').Buffer,
     ws = require('ws'),

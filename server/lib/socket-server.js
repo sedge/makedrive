@@ -35,7 +35,6 @@ module.exports = function( server ) {
 
       var sync = Sync.retrieve( authData.username, authData.sessionId );
       // TODO: Attach 'on out of date' logic
-      //     - Specifically, force a downstream sync
       sync.setSocket( ws );
 
       ws.on('message', function(data, flags) {

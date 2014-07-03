@@ -9,7 +9,7 @@ module.exports = {
   index: function( req, res ) {
     res.send( "MakeDrive: https://wiki.mozilla.org/Webmaker/MakeDrive" );
   },
-  servePath: function( req, res ) { console.log("In serverPath, username: " + req.params.username);
+  servePath: function( req, res ) {
     var username = req.params.username;
     var path = '/' + req.params[0];
 

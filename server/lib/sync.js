@@ -75,7 +75,7 @@ function createError(code, message) {
  * Constructor
  */
 function Sync( username, sessionId ) {
-  var id = this.sessionId = sessionId;
+  this.sessionId = sessionId;
   this.username = username;
 
   // Ensure the current user exists in our datastore and
@@ -83,14 +83,13 @@ function Sync( username, sessionId ) {
   if (!connectedClients[username]) {
     connectedClients[username] = {};
   }
-  connectedClients[username][id] = {
+  connectedClients[username][sessionId] = {
     sync: this
   };
   this.fs = filesystem.create({
     keyPrefix: this.username,
     name: this.username
   });
-  // TODO: Decide what our root path will be (currently /)
   this.state = Sync.CONNECTED;
   this.path = '/';
 }
