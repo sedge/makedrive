@@ -18,7 +18,7 @@ var env = require( "./lib/environment" ),
 var app = express(),
     distDir = Path.resolve( __dirname, "dist" ),
     webmakerAuth = new WebmakerAuth({
-      loginURL: env.get( "LOGIN_SERVER_URL_WITH_AUTH" ),
+      loginURL: env.get( "LOGIN" ),
       secretKey: env.get( "SESSION_SECRET" ),
       forceSSL: env.get( "FORCE_SSL" ),
       domain: env.get( "COOKIE_DOMAIN" )
@@ -38,11 +38,15 @@ if ( env.get( "ENABLE_GELF_LOGS" ) ) {
 
 // General middleware
 app.disable( "x-powered-by" );
+app.use( middleware.crossOriginHandler );
 app.use( helmet.contentTypeOptions() );
 app.use( helmet.hsts() );
 app.enable( "trust proxy" );
 app.use( express.compress() );
-app.use(express.static(Path.join(__dirname,'../client')));
+app.use( express.static(Path.join(__dirname,'../client')) );
+if ( env.get( "NODE_ENV" ) === "development" ) {
+  app.use( "/demo", express.static(Path.join(__dirname,'../demo')) );
+}
 app.use( express.json() );
 app.use( express.urlencoded() );
 app.use( webmakerAuth.cookieParser() );
@@ -53,16 +57,12 @@ app.use( app.router );
 app.use( middleware.errorHandler );
 app.use( middleware.fourOhFourHandler );
 
-function corsOptions ( req, res ) {
-  res.header( "Access-Control-Allow-Origin", "*" );
-}
-
 // Declare routes
 routes( app, webmakerAuth );
 
-port = env.get( "PORT", 9090 );
+port = process.env.PORT || env.get( "PORT", 9090 );
 var server = http.createServer( app );
-server.listen(9090);
+server.listen(port);
 
 socketServer( server );
 

@@ -1,11 +1,11 @@
 {
   "name": "makedrive",
-  "version": "0.0.0",
+  "version": "0.0.27",
   "description": "Webmaker Filesystem",
   "scripts": {
-    "postinstall": "bower install",
+    "postinstall": "bower install && grunt install",
     "start": "node ./server/index.js",
-    "test": "mocha --recursive --reporter spec ./tests"
+    "test": "grunt init && grunt test"
   },
   "repository": {
     "type": "git",
@@ -14,22 +14,52 @@
   "keywords": [
     "filesystem",
     "storage",
-    "web"
+    "web",
+    "makedrive",
+    "webmaker",
+    "cloud"
   ],
-  "author": "David Humphrey <david.humphrey@senecacollege.ca>",
+  "contributors": [
+    {
+      "name": "David Humphrey",
+      "email": "david.humphrey@senecacollege.ca",
+      "url": "https://github.com/humphd"
+    },
+    {
+      "name": "Ali Al Dallal",
+      "email": "ali@alicoding.com",
+      "url": "https://github.com/alicoding"
+    },
+    {
+      "name": "Kieran Sedgwick",
+      "email": "kieran.sedgwick@gmail.com",
+      "url": "https://github.com/sedge"
+    },
+    {
+      "name": "Gideon Thomas",
+      "email": "r.gideonthomas@gmail.com",
+      "url": "https://github.com/gideonthomas"
+    },
+    {
+      "name": "Yoav Gurevich",
+      "email": "ygurevich@ymail.com",
+      "url": "https://github.com/yoavgurevich"
+    }
+  ],
   "license": "MPL2",
   "bugs": {
     "url": "https://github.com/mozilla/makedrive/issues"
   },
   "dependencies": {
+    "archiver": "^0.10.1",
     "MD5": "^1.2.1",
     "async": "^0.9.0",
+    "webmaker-auth": "0.0.14",
     "bower": "1.3.8",
     "browser-request": "^0.3.1",
     "crypto-js": "^3.1.2-3",
     "events": "^1.0.1",
     "express": "3.4.5",
-    "filer": "0.0.17",
     "filer-fs": "git://github.com/humphd/filer-fs.git#master",
     "filer-s3": "0.0.2",
     "habitat": "1.1.0",
@@ -40,24 +70,34 @@
     "mime": "^1.2.11",
     "newrelic": "1.4.0",
     "node-uuid": "^1.4.1",
-    "webmaker-auth": "0.0.14",
     "ws": "^0.4.31"
   },
   "devDependencies": {
     "browserify": "^4.1.8",
+    "node-deep-equal": "git://github.com/humphd/node-deep-equal.git#b9f1fbd8397691e246529152678595b00ee5f468",
     "chai": "^1.9.1",
     "grunt": "~0.4.1",
     "grunt-browserify": "^2.1.0",
+    "grunt-bump": "0.0.14",
     "grunt-contrib-clean": "^0.5.0",
     "grunt-contrib-jshint": "0.10.0",
     "grunt-contrib-uglify": "^0.4.0",
+    "grunt-contrib-watch": "^0.6.1",
+    "grunt-exec": "^0.4.6",
+    "grunt-express-server": "^0.4.17",
+    "grunt-npm": "git://github.com/sedge/grunt-npm.git#branchcheck",
+    "grunt-prompt": "^1.1.0",
+    "jit-grunt": "^0.7.0",
     "mocha": "*",
     "request": "2.36.x",
-    "supertest": "0.13.x"
+    "semver": "^2.3.1",
+    "supertest": "0.13.x",
+    "time-grunt": "^0.4.0"
   },
   "main": "./server/index.js",
   "browser": {
     "filer": "./node_modules/filer/dist/filer.js",
-    "request": "browser-request"
+    "request": "browser-request",
+    "ws": "./client/src/client-ws.js"
   }
 }

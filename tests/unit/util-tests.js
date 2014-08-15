@@ -1,9 +1,12 @@
+/*jshint expr: true*/
+
 var expect = require('chai').expect;
 var util = require('../lib/util.js');
 var request = require('request');
 var ws = require('ws');
 var SyncMessage = require('../../lib/syncmessage');
-var FileSystem = require('filer').FileSystem;
+var Filer = require('../../lib/filer.js');
+var FileSystem = Filer.FileSystem;
 
 describe('Test util.js', function(){
   describe('[Connection Helpers]', function() {
@@ -25,6 +28,7 @@ describe('Test util.js', function(){
         });
       });
     });
+
     it('util.authenticate should work with no options object passed', function(done) {
       util.authenticate(function(err, result) {
         expect(err).not.to.exist;
@@ -32,7 +36,8 @@ describe('Test util.js', function(){
         expect(result.jar).to.exist;
         done();
       });
-});
+    });
+
     it('util.getWebsocketToken should return a token on callback', function(done) {
       var username = util.username();
       util.authenticate({username: username}, function(err, authResult) {
@@ -42,6 +47,7 @@ describe('Test util.js', function(){
         });
       });
     });
+
     it('util.authenticatedConnection should signin and get a username, and ws token', function(done) {
       util.authenticatedConnection(function(err, result) {
         expect(err, "[err]").not.to.exist;
@@ -62,6 +68,7 @@ describe('Test util.js', function(){
         });
       });
     });
+
     it('util.authenticatedConnection should accept done function', function(done) {
       util.authenticatedConnection({done: done}, function(err, result) {
         expect(err).not.to.exist;
@@ -80,6 +87,7 @@ describe('Test util.js', function(){
     it('util.app should return the Express app instance', function () {
       expect(util.app).to.exist;
     });
+
     it('util.username should generate a unique username with each call', function() {
       var username1 = util.username();
       var username2 = util.username();
@@ -87,6 +95,7 @@ describe('Test util.js', function(){
       expect(username2).to.be.a.string;
       expect(username1).not.to.equal(username2);
     });
+
     it('util.upload should allow a file to be uploaded and served', function(done) {
       var fs = require('fs');
       var Path = require('path');
@@ -127,22 +136,29 @@ describe('Test util.js', function(){
     });
   });
 
-  describe('[Doesn\'t Belong Here!]', function(){
-    it('/p/ should give a 404 if the path is unknown', function(done) {
-      util.authenticate(function(err, result) {
-        expect(err).not.to.exist;
-        expect(result.jar).to.exist;
+  describe('[Filesystem Helpers]', function() {
+    var provider;
 
-        request.get({
-          url: util.serverURL + '/p/no/file/here.html',
-          jar: result.jar
-        }, function(err, res, body) {
-          expect(err).not.to.exist;
-          expect(res.statusCode).to.equal(200);
-          expect(body).to.match(/<title>404 Not Found<\/title>/);
-          expect(body).to.match(/The requested URL \/no\/file\/here.html was not found on this server./);
-          done();
-        });
+    beforeEach(function() {
+      provider = new FileSystem.providers.Memory(util.username());
+    });
+    afterEach(function() {
+      provider = null;
+    });
+
+    it('should createFilesystemLayout and ensureFilesystem afterward', function(done) {
+      var fs = new FileSystem({provider: provider});
+      var layout = {
+        "/file1": "contents file1",
+        "/dir1/file1": new Buffer([1,2,3]),
+        "/dir1/file2": "contents file2",
+        "/dir2": null
+      };
+
+      util.createFilesystemLayout(fs, layout, function(err) {
+        expect(err).not.to.exist;
+
+        util.ensureFilesystem(fs, layout, done);
       });
     });
   });
@@ -151,8 +167,10 @@ describe('Test util.js', function(){
     it('util.openSocket should open a socket connection with default handlers if none are provided', function(done){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var socketPackage = util.openSocket();
-
-        expect(socketPackage.socket instanceof ws).to.be.true;
+        expect(socketPackage.socket).to.exist;
+        expect(socketPackage.socket.readyState).to.exist;
+        expect(socketPackage.socket.url).to.exist;
+        expect(socketPackage.socket._events).to.exist;
         expect(typeof socketPackage.onOpen).to.deep.equal("function");
         expect(typeof socketPackage.onClose).to.deep.equal("function");
         expect(typeof socketPackage.onError).to.deep.equal("function");
@@ -164,12 +182,13 @@ describe('Test util.js', function(){
         socketPackage.socket.close();
       });
     });
+
     it('util.openSocket should open a socket with custom handlers when passed', function(done){
       util.authenticatedConnection({ done: done }, function(err, result) {
-        function onClose() {};
-        function onError() {};
-        function onOpen() {};
-        function onMessage() {};
+        function onClose() {}
+        function onError() {}
+        function onOpen() {}
+        function onMessage() {}
 
         var socketPackage = util.openSocket({
           onClose: onClose,
@@ -178,7 +197,10 @@ describe('Test util.js', function(){
           onMessage: onMessage
         });
 
-        expect(socketPackage.socket instanceof ws).to.be.true;
+        expect(socketPackage.socket).to.exist;
+        expect(socketPackage.socket.readyState).to.exist;
+        expect(socketPackage.socket.url).to.exist;
+        expect(socketPackage.socket._events).to.exist;
         expect(socketPackage.onOpen).to.deep.equal(onOpen);
         expect(socketPackage.onClose).to.deep.equal(onClose);
         expect(socketPackage.onError).to.deep.equal(onError);
@@ -190,16 +212,17 @@ describe('Test util.js', function(){
         socketPackage.socket.close();
       });
     });
+
     it('util.openSocket should automatically generate an onOpen handler to send syncId to the server when passed syncId', function(done) {
       util.authenticatedConnection({ done: done }, function(err, result) {
         var socketData = {
           token: result.token
-        }
+        };
 
         var socketPackage = util.openSocket(socketData, {
           onMessage: function(message){
             // First, confirm server acknowledgment
-            message = util.resolveToJSON(message);
+            message = util.toSyncMessage(message);
             expect(message).to.exist;
             expect(message.type).to.equal(SyncMessage.REQUEST);
             expect(message.name).to.equal(SyncMessage.CHKSUM);
@@ -213,6 +236,7 @@ describe('Test util.js', function(){
         });
       });
     });
+
     it('util.openSocket\'s returned socketPackage.setXXX functions should change the socket\'s event handlers', function(done) {
       util.authenticatedConnection({ done: done }, function(err, result) {
         var socketPackage = util.openSocket();
@@ -238,6 +262,7 @@ describe('Test util.js', function(){
         socketPackage.socket.close();
       });
     });
+
     it('util.cleanupSockets should close a single socket and end tests', function(done){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var socketPackage = util.openSocket();
@@ -247,6 +272,7 @@ describe('Test util.js', function(){
         }, socketPackage);
       });
     });
+
     it('util.cleanupSockets should close multiple sockets and end tests', function(done){
       util.authenticatedConnection({ done: done }, function(err, result) {
         var socketPackage1 = util.openSocket();
@@ -263,24 +289,29 @@ describe('Test util.js', function(){
     });
   });
 
-  describe('[Sync Helpers]', function(done) {
+  describe('[Downstream Sync Helpers]', function() {
     it('util.prepareDownstreamSync should prepare a filesystem for the passed user when finalStep isn\'t specified', function(done) {
       util.authenticatedConnection({done: done}, function(err, result) {
         var username = util.username();
 
-        util.prepareDownstreamSync(username, result.token, function(syncData, fs, socketPackage) {
-          expect(fs instanceof FileSystem).to.equal.true;
+        util.prepareDownstreamSync(username, result.token, function(err, syncData, fs, socketPackage) {
+          expect(err).to.not.exist;
+          expect(fs).to.exist;
+          expect(fs.name).to.exist;
+          expect(fs.watch).to.exist;
+          expect(fs.provider).to.exist;
           util.cleanupSockets(result.done, socketPackage);
         });
       });
     });
-    it('util.downstreamSyncSteps.diffs should return the checksums to the client', function(done) {
+
+    it('util.downstreamSyncSteps.generateDiffs should return the diffs to the client', function(done) {
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
 
-        util.prepareDownstreamSync(username, result.token, function(syncData, fs, socketPackage) {
-          util.downstreamSyncSteps.diffs(socketPackage, syncData, fs, function(message, cb) {
-            message = util.resolveToJSON(message);
+        util.prepareDownstreamSync(username, result.token, function(err, syncData, fs, socketPackage) {
+          util.downstreamSyncSteps.generateDiffs(socketPackage, syncData, fs, function(message, cb) {
+            message = util.toSyncMessage(message);
 
             expect(message.type).to.equal(SyncMessage.RESPONSE);
             expect(message.name).to.equal(SyncMessage.DIFFS);
@@ -295,35 +326,92 @@ describe('Test util.js', function(){
         });
       });
     });
-    it('util.prepareDownstreamSync should complete the diffs step automatically when passed \'diffs\' as the finalStep', function(done) {
+
+    it('util.prepareDownstreamSync should complete the generateDiffs step automatically when passed \'generateDiffs\' as the finalStep', function(done) {
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
-        util.prepareDownstreamSync("diffs", username, result.token, function(syncData, fs, socketPackage) {
+        util.prepareDownstreamSync("generateDiffs", username, result.token, function(err, syncData, fs, socketPackage) {
           expect(syncData.diffs).to.exist;
 
           util.cleanupSockets(result.done, socketPackage);
         });
       });
     });
-    it('util.syncSteps.patch should return nothing and be perfectly fine', function(done) {
+
+    it('util.syncSteps.patchClientFilesystem should execute properly, allowing a client to begin an upstream sync', function(done) {
       util.authenticatedConnection({ done: done }, function(err, result) {
         var username = util.username();
 
-        util.prepareDownstreamSync("diffs", username, result.token, function(syncData, fs, socketPackage) {
-          util.downstreamSyncSteps.patch(socketPackage, syncData, fs, function(err) {
-            expect(err, "[Patch error:] " + err).not.to.exist;
+        util.prepareDownstreamSync("generateDiffs", username, result.token, function(err, syncData, fs, socketPackage) {
+          util.downstreamSyncSteps.patchClientFilesystem(socketPackage, syncData, fs, function(err, data) {
+            expect(data).to.exist;
+            expect(data.path).to.exist;
 
+            util.upstreamSyncSteps.requestSync(socketPackage, data, function() {
+              util.cleanupSockets(result.done, socketPackage);
+            });
+          });
+        });
+      });
+    });
+
+    it('util.prepareDownstreamSync should complete the patchClientFilesystem step automatically when passed \'patchClientFilesystem\' as the finalStep, allowing a client to begin an upstream sync', function(done) {
+      util.authenticatedConnection({ done: done }, function(err, result) {
+        var username = util.username();
+
+        util.prepareDownstreamSync("patchClientFilesystem", username, result.token, function(err, syncData, fs, socketPackage) {
+          expect(syncData).to.exist;
+          expect(syncData.path).to.exist;
+
+          util.upstreamSyncSteps.requestSync(socketPackage, syncData, function() {
             util.cleanupSockets(result.done, socketPackage);
           });
         });
       });
     });
-    it('util.prepareDownstreamSync should complete the patch step automatically when passed \'patch\' as the finalStep', function(done) {
-      util.authenticatedConnection({ done: done }, function(err, result) {
+  });
+
+  describe('[Upstream Sync Helpers]', function() {
+    it('util.prepareUpstreamSync.prepareSync should return confirmation of a sync to the client', function(done) {
+      util.authenticatedConnection({done: done}, function(err, result) {
         var username = util.username();
 
-        util.prepareDownstreamSync("patch", username, result.token, function(syncData, fs, socketPackage) {
-          util.cleanupSockets(result.done, socketPackage);
+        util.prepareUpstreamSync(username, result.token, function(err, syncData, fs, socketPackage) {
+          expect(fs).to.exist;
+          expect(fs.name).to.exist;
+          expect(fs.watch).to.exist;
+          expect(fs.provider).to.exist;
+          util.upstreamSyncSteps.requestSync(socketPackage, syncData, function(message, cb) {
+            message = util.toSyncMessage(message);
+
+            expect(message).to.exist;
+            expect(message.type).to.equal(SyncMessage.RESPONSE);
+            expect(message.name, "[SyncMessage Type error. SyncMessage.content was: " + message.content + "]").to.equal(SyncMessage.SYNC);
+
+            cb();
+          }, function() {
+            util.cleanupSockets(result.done, socketPackage);
+          });
+        });
+      });
+    });
+
+    it('util.prepareUpstreamSync should complete a downstream sync, allowing the client to initiate an upstream sync, and prepare a filesystem for the client when finalStep isn\'t specified', function(done) {
+      util.authenticatedConnection({done: done}, function(err, result) {
+        var username = util.username();
+
+        util.prepareUpstreamSync(username, result.token, function(err, syncData, fs, socketPackage) {
+          expect(err).to.not.exist;
+          expect(fs).to.exist;
+          expect(fs.name).to.exist;
+          expect(fs.watch).to.exist;
+          expect(fs.provider).to.exist;
+          expect(syncData).to.exist;
+          expect(syncData.path).to.exist;
+
+          util.upstreamSyncSteps.requestSync(socketPackage, syncData, function() {
+            util.cleanupSockets(result.done, socketPackage);
+          });
         });
       });
     });
