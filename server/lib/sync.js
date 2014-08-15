@@ -10,6 +10,7 @@ var rsyncOptions = require('../../lib/constants').rsyncDefaults;
 var env = require('../../server/lib/environment');
 var EventEmitter = require('events').EventEmitter;
 var util = require('util');
+var getCommonPath = require('../../lib/sync-path-resolver').resolve;
 
 // Table of connected clients, keyed by username. Each connected client
 // has its own unique id (i.e., token obtained from /api/sync), but
@@ -352,6 +353,19 @@ Sync.initiateSafeShutdown = function() {
   areSyncsComplete();
 };
 
+
+// Loops through all of the currently connected clients for
+// a user, setting a flag that will block downstream syncs
+Sync.interruptDownstreamSyncs = function(username, interrupt) {
+  var clients = connectedClients[username];
+  var sync;
+  for (var id in clients) {
+    sync = clients[id];
+    sync.rejectDownstream = interrupt;
+  }
+};
+
+
 // Handle requested resources
 function handleRequest(sync, data) {
   var response;
@@ -364,6 +378,13 @@ function handleRequest(sync, data) {
   function handleDiffRequest() {
     if(!data.content || !data.content.checksums) {
       return sync.sendMessage(SyncMessage.error.content, true);
+    }
+
+    // We reject downstream sync SyncMessages unless the sync
+    // is part of an initial downstream sync for a connection
+    if (sync.rejectDownstream && !data.is.authz) {
+      response = SyncMessage.error.downstreamLocked;
+      return sync.sendMessage(response, true);
     }
 
     var checksums = data.content.checksums;
@@ -390,6 +411,9 @@ function handleRequest(sync, data) {
     }
 
     if(sync.canSync()) {
+      // Interrupt downstream syncs on other clients.
+      Sync.interruptDownstreamSyncs(sync.username, true);
+
       response = SyncMessage.response.sync;
       response.content = {path: data.content.path};
       sync.updateLastContact();
@@ -451,6 +475,13 @@ function handleResponse(sync, data) {
   var response;
 
   function handleDownstreamReset() {
+    // We reject downstream sync SyncMessages unless the sync
+    // is part of an initial downstream sync for a connection
+    if (sync.rejectDownstream && !data.is.authz) {
+      response = SyncMessage.error.downstreamLocked;
+      return sync.sendMessage(response, true);
+    }
+
     rsync.sourceList(sync.fs, '/', rsyncOptions, function(err, srcList) {
       if(err) {
         response = SyncMessage.error.srclist;
@@ -541,15 +572,14 @@ function handleResponse(sync, data) {
 
 // Broadcast an out-of-date message to the all clients other than
 // the active sync after an upstream sync process has completed.
-function broadcastUpdate(username, response) {
+// Also, if any downstream syncs were interrupted during this
+// upstream sync, they will be retriggered.
+function broadcastUpdate(username, defaultResponse) {
   var clients = connectedClients[username];
   var activeSync = activeSyncs.byUsername(username);
   var outOfDateClient;
 
-  if(!clients) {
-    return;
-  }
-  if(!activeSync) {
+  if(!clients || !activeSync) {
     return;
   }
 
@@ -559,9 +589,32 @@ function broadcastUpdate(username, response) {
     }
 
     outOfDateClient = clients[id];
+
+    // If this client was in the process of a downstream sync, we
+    // want to reactivate it with a path that is the common ancestor
+    // of the path originally being synced, and the path that was just
+    // updated in this upstream sync.
+    if(outOfDateClient.rejectDownstream) {
+      outOfDateClient.rejectDownstream = false;
+      outOfDateClient.path = getCommonPath(defaultResponse.path, outOfDateClient.path);
+
+      rsync.sourceList(outOfDateClient.fs, outOfDateClient.path, rsyncOptions, function(err, srcList) {
+        var response;
+        if (err) {
+          response = SyncMessage.error.srclist;
+          response.content = {error: err};
+        } else {
+          response = SyncMessage.request.chksum;
+          response.content = {srcList: srcList, path: outOfDateClient.path};
+        }
+        outOfDateClient.sendMessage(response);
+      });
+      return;
+    }
+
     outOfDateClient.state = Sync.OUT_OF_DATE;
-    outOfDateClient.path = response.content.path;
-    outOfDateClient.sendMessage(response);
+    outOfDateClient.path = defaultResponse.content.path;
+    outOfDateClient.sendMessage(defaultResponse);
   });
 }
 
