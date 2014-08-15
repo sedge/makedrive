@@ -9,254 +9,272 @@ var deserialize = require('../../lib/diff').deserialize;
 var env = require('../../server/lib/environment');
 
 describe('[Downstream Syncing with Websockets]', function(){
- describe('The server', function(){
-   it('should close a socket if bad data is sent in place of websocket-auth token', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
+  describe('The server', function(){
+    it('should close a socket if bad data is sent in place of websocket-auth token', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
 
-       var gotMessage = false;
+        var gotMessage = false;
 
-       var socketPackage = util.openSocket({
-         onMessage: function() {
-           gotMessage = true;
-         },
-         onClose: function() {
-           expect(gotMessage).to.be.false;
-           util.cleanupSockets(result.done, socketPackage);
-         },
-         onOpen: function() {
-           socketPackage.socket.send("this-is-garbage");
-         }
-       });
-     });
-   });
+        var socketPackage = util.openSocket({
+          onMessage: function() {
+            gotMessage = true;
+          },
+          onClose: function() {
+            expect(gotMessage).to.be.false;
+            util.cleanupSockets(result.done, socketPackage);
+          },
+          onOpen: function() {
+            socketPackage.socket.send("this-is-garbage");
+          }
+        });
+      });
+    });
 
-   it('shouldn\'t allow the same token to be used twice', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
-       var socketData = {
-         token: result.token
-       };
+    it('shouldn\'t allow the same token to be used twice', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
+        var socketData = {
+          token: result.token
+        };
 
-       var socketPackage = util.openSocket(socketData, {
-         onMessage: function(message) {
-           message = util.toSyncMessage(message);
+        var socketPackage = util.openSocket(socketData, {
+          onMessage: function(message) {
+            message = util.toSyncMessage(message);
 
-           expect(message).to.exist;
-           expect(message.type).to.equal(SyncMessage.REQUEST);
-           expect(message.name).to.equal(SyncMessage.CHKSUM);
-           expect(message.content).to.be.an('object');
+            expect(message).to.exist;
+            expect(message.type).to.equal(SyncMessage.REQUEST);
+            expect(message.name).to.equal(SyncMessage.CHKSUM);
+            expect(message.content).to.be.an('object');
 
-           var socketPackage2 = util.openSocket(socketData, {
-             onClose: function(code, reason) {
-               expect(code).to.equal(1008);
-               util.cleanupSockets(result.done, socketPackage, socketPackage2);
-             }
-           });
-         }
-       });
-     });
-   });
+            var socketPackage2 = util.openSocket(socketData, {
+              onClose: function(code, reason) {
+                expect(code).to.equal(1008);
+                util.cleanupSockets(result.done, socketPackage, socketPackage2);
+              }
+            });
+          }
+        });
+      });
+    });
 
-   it(', after receiving a valid token and syncId, should send a RESPONSE named "AUTHZ"', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
-       var socketData = {
-         token: result.token
-       };
+    it(', after receiving a valid token and syncId, should send a RESPONSE named "AUTHZ"', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
+        var socketData = {
+          token: result.token
+        };
 
-       var socketPackage = util.openSocket({
-         onMessage: function(message) {
-           expect(message).to.equal(SyncMessage.response.authz.stringify());
-           util.cleanupSockets(result.done, socketPackage);
-         },
-         onOpen: function() {
-           socketPackage.socket.send(JSON.stringify(socketData));
-         }
-       });
-     });
-   });
+        var socketPackage = util.openSocket({
+          onMessage: function(message) {
+            expect(message).to.equal(SyncMessage.response.authz.stringify());
+            util.cleanupSockets(result.done, socketPackage);
+          },
+          onOpen: function() {
+            socketPackage.socket.send(JSON.stringify(socketData));
+          }
+        });
+      });
+    });
 
-   it('should allow two socket connections for the same username from different clients', function(done) {
-     util.authenticatedConnection(function( err, result ) {
-       expect(err).not.to.exist;
-       var socketData = {
-         token: result.token
-       };
+    it('should allow two socket connections for the same username from different clients', function(done) {
+      util.authenticatedConnection(function( err, result ) {
+        expect(err).not.to.exist;
+        var socketData = {
+          token: result.token
+        };
 
-       var socketPackage = util.openSocket(socketData, {
-         onMessage: function(message) {
-           message = util.toSyncMessage(message);
-           expect(message).to.exist;
-           expect(message.type).to.equal(SyncMessage.REQUEST);
-           expect(message.name).to.equal(SyncMessage.CHKSUM);
-           expect(message.content).to.be.an('object');
+        var socketPackage = util.openSocket(socketData, {
+          onMessage: function(message) {
+            message = util.toSyncMessage(message);
+            expect(message).to.exist;
+            expect(message.type).to.equal(SyncMessage.REQUEST);
+            expect(message.name).to.equal(SyncMessage.CHKSUM);
+            expect(message.content).to.be.an('object');
 
-           util.authenticatedConnection({username: result.username}, function(err, result2) {
-             expect(err).not.to.exist;
-             socketData = {
-               syncId: result2.syncId,
-               token: result2.token
-             };
+            util.authenticatedConnection({username: result.username}, function(err, result2) {
+              expect(err).not.to.exist;
+              socketData = {
+                syncId: result2.syncId,
+                token: result2.token
+              };
 
-             var socketPackage2 = util.openSocket(socketData, {
-               onMessage: function(message) {
-                 util.cleanupSockets(function() {
-                   result.done();
-                   result2.done();
-                   done();
-                 }, socketPackage, socketPackage2);
-               },
-             });
-           });
-         }
-       });
-     });
-   });
+              var socketPackage2 = util.openSocket(socketData, {
+                onMessage: function(message) {
+                  util.cleanupSockets(function() {
+                    result.done();
+                    result2.done();
+                    done();
+                  }, socketPackage, socketPackage2);
+                },
+              });
+            });
+          }
+        });
+      });
+    });
 
-   it('should send an "implementation" SyncMessage error object when a non-syncmessage object is sent', function(done) {
-     util.authenticatedConnection({ done: done }, function(err, result) {
-       expect(err).not.to.exist;
+    it('should send an "implementation" SyncMessage error object when a non-syncmessage object is sent', function(done) {
+      util.authenticatedConnection({ done: done }, function(err, result) {
+        expect(err).not.to.exist;
 
-       var socketData = {
-         token: result.token
-       };
+        var socketData = {
+          token: result.token
+        };
 
-       var socketPackage = util.openSocket(socketData, {
-         onMessage: function(message) {
-           // First, confirm server acknowledgment
-           message = util.toSyncMessage(message);
-           expect(message).to.exist;
-           expect(message.type).to.equal(SyncMessage.REQUEST);
-           expect(message.name).to.equal(SyncMessage.CHKSUM);
-           expect(message.content).to.be.an('object');
+        var socketPackage = util.openSocket(socketData, {
+          onMessage: function(message) {
+            // First, confirm server acknowledgment
+            message = util.toSyncMessage(message);
+            expect(message).to.exist;
+            expect(message.type).to.equal(SyncMessage.REQUEST);
+            expect(message.name).to.equal(SyncMessage.CHKSUM);
+            expect(message.content).to.be.an('object');
 
-           // Listen for SyncMessage error
-           socketPackage.socket.on("message", function(message) {
-             var implMsg = SyncMessage.error.impl;
-             implMsg.content = { error: "The Sync message cannot be handled by the server" };
+            // Listen for SyncMessage error
+            socketPackage.socket.on("message", function(message) {
+              var implMsg = SyncMessage.error.impl;
+              implMsg.content = { error: "The Sync message cannot be handled by the server" };
 
-             expect(message).to.equal(implMsg.stringify());
-             util.cleanupSockets(result.done, socketPackage);
-           });
+              expect(message).to.equal(implMsg.stringify());
+              util.cleanupSockets(result.done, socketPackage);
+            });
 
-           var invalidMessage = {
-             anything: "else"
-           };
+            var invalidMessage = {
+              anything: "else"
+            };
 
-           socketPackage.socket.send(JSON.stringify(invalidMessage));
-         }
-       });
-     });
-   });
- });
+            socketPackage.socket.send(JSON.stringify(invalidMessage));
+          }
+        });
+      });
+    });
+  });
 
- describe('Generate Diffs', function() {
-   it('should return an RESPONSE message with the diffs', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
+  describe('Generate Diffs', function() {
+    it('should return an RESPONSE message with the diffs', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
 
-       util.prepareDownstreamSync(result.username, result.token, function(err, syncData, fs, socketPackage) {
-         util.downstreamSyncSteps.generateDiffs(socketPackage, syncData, fs, function(msg, cb) {
-           msg = util.toSyncMessage(msg);
+        util.prepareDownstreamSync(result.username, result.token, function(err, syncData, fs, socketPackage) {
+          util.downstreamSyncSteps.generateDiffs(socketPackage, syncData, fs, function(msg, cb) {
+            msg = util.toSyncMessage(msg);
 
-           expect(msg.type, "[Message type error: \"" + (msg.content && msg.content.error) +"\"]" ).to.equal(SyncMessage.RESPONSE);
-           expect(msg.name).to.equal(SyncMessage.DIFFS);
-           expect(msg.content).to.exist;
-           expect(msg.content.diffs).to.exist;
-           cb();
-         }, function(data) {
-           util.cleanupSockets(result.done, socketPackage);
-         });
-       });
-     });
-   });
-   it('should return an ERROR type message named DIFFS when faulty checksums are sent', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
+            expect(msg.type, "[Message type error: \"" + (msg.content && msg.content.error) +"\"]" ).to.equal(SyncMessage.RESPONSE);
+            expect(msg.name).to.equal(SyncMessage.DIFFS);
+            expect(msg.content).to.exist;
+            expect(msg.content.diffs).to.exist;
+            cb();
+          }, function(data) {
+            util.cleanupSockets(result.done, socketPackage);
+          });
+        });
+      });
+    });
 
-       util.prepareDownstreamSync(result.username, result.token, function(err, syncData, fs, socketPackage) {
-         var diffRequest = SyncMessage.request.diffs;
-         diffRequest.content = {
-           checksums: "jargon"
-         };
-         util.sendSyncMessage(socketPackage, diffRequest, function(msg) {
-           msg = util.toSyncMessage(msg);
+    it('should return an ERROR type message named DIFFS when faulty checksums are sent', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
 
-           expect(msg.type, "[Message type error: \"" + (msg.content && msg.content.error) +"\"]" ).to.equal(SyncMessage.ERROR);
-           expect(msg.name).to.equal(SyncMessage.DIFFS);
-           expect(msg.content).to.exist;
-           expect(msg.content.diffs).to.not.exist;
-           util.cleanupSockets(result.done, socketPackage);
-         });
-       });
-     });
-   });
-   it('should return an SyncMessage with error content when no checksums are sent', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
+        util.prepareDownstreamSync(result.username, result.token, function(err, syncData, fs, socketPackage) {
+          var diffRequest = SyncMessage.request.diffs;
+          diffRequest.content = {
+            checksums: "jargon"
+          };
+          util.sendSyncMessage(socketPackage, diffRequest, function(msg) {
+            msg = util.toSyncMessage(msg);
 
-       util.prepareDownstreamSync(result.username, result.token, function(err, syncData, fs, socketPackage) {
-         var diffRequest = SyncMessage.request.diffs;
-         util.sendSyncMessage(socketPackage, diffRequest, function(msg) {
-           msg = util.toSyncMessage(msg);
+            expect(msg.type, "[Message type error: \"" + (msg.content && msg.content.error) +"\"]" ).to.equal(SyncMessage.ERROR);
+            expect(msg.name).to.equal(SyncMessage.DIFFS);
+            expect(msg.content).to.exist;
+            expect(msg.content.diffs).to.not.exist;
+            util.cleanupSockets(result.done, socketPackage);
+          });
+        });
+      });
+    });
 
-           expect(msg).to.eql(SyncMessage.error.content);
-           util.cleanupSockets(result.done, socketPackage);
-         });
-       });
-     });
-   });
- });
+    it('should return an SyncMessage with error content when no checksums are sent', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
 
- describe('Patch the client filesystem', function() {
-   it('should make the server respond with a RESPONSE SYNC SyncMessage after ending a downstream sync, and initiating an upstream sync', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
+        util.prepareDownstreamSync(result.username, result.token, function(err, syncData, fs, socketPackage) {
+          var diffRequest = SyncMessage.request.diffs;
+          util.sendSyncMessage(socketPackage, diffRequest, function(msg) {
+            msg = util.toSyncMessage(msg);
 
-       util.prepareDownstreamSync('generateDiffs', result.username, result.token, function(err, syncData, fs, socketPackage) {
-         util.downstreamSyncSteps.patchClientFilesystem(socketPackage, syncData, fs, function(msg, cb) {
-           msg = util.toSyncMessage(msg);
-           var startSyncMsg = SyncMessage.request.sync;
-           startSyncMsg.content = {path: '/'};
-           util.sendSyncMessage(socketPackage, startSyncMsg, function(message){
-             message = util.toSyncMessage(message);
+            expect(msg).to.eql(SyncMessage.error.content);
+            util.cleanupSockets(result.done, socketPackage);
+          });
+        });
+      });
+    });
+  });
 
-             expect(message).to.exist;
-             expect(message.type).to.equal(SyncMessage.RESPONSE);
-             expect(message.name).to.equal(SyncMessage.SYNC);
+  describe('Patch the client filesystem', function() {
+    it('should make the server respond with a RESPONSE SYNC SyncMessage after ending a downstream sync, and initiating an upstream sync', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
 
-             cb();
-           });
-         }, function(data) {
-           util.cleanupSockets(result.done, socketPackage);
-         });
-       });
-     });
-   });
+        util.prepareDownstreamSync('generateDiffs', result.username, result.token, function(err, syncData, fs, socketPackage) {
+          util.downstreamSyncSteps.patchClientFilesystem(socketPackage, syncData, fs, function(msg, cb) {
+            msg = util.toSyncMessage(msg);
+            var startSyncMsg = SyncMessage.request.sync;
+            startSyncMsg.content = {path: '/'};
+            util.sendSyncMessage(socketPackage, startSyncMsg, function(message){
+              message = util.toSyncMessage(message);
 
-   it('should return an IMPLEMENTATION ERROR SyncMessage when sent out of turn', function(done) {
-     util.authenticatedConnection({ done: done }, function( err, result ) {
-       expect(err).not.to.exist;
+              expect(message).to.exist;
+              expect(message.type).to.equal(SyncMessage.RESPONSE);
+              expect(message.name).to.equal(SyncMessage.SYNC);
 
-       util.prepareDownstreamSync(result.username, result.token, function(err, data, fs, socketPackage) {
-         var startSyncMsg = SyncMessage.request.sync;
-         startSyncMsg.content = {path: '/'};
-         util.sendSyncMessage(socketPackage, startSyncMsg, function(msg){
-           msg = util.toSyncMessage(msg);
+              cb();
+            });
+          }, function(data) {
+            util.cleanupSockets(result.done, socketPackage);
+          });
+        });
+      });
+    });
 
-           expect(msg).to.exist;
-           expect(msg.type).to.equal(SyncMessage.ERROR);
-           expect(msg.name).to.equal(SyncMessage.IMPL);
-           expect(msg.content).to.exist;
-           expect(msg.content.error).to.exist;
+    it('should return an IMPLEMENTATION ERROR SyncMessage when sent out of turn', function(done) {
+      util.authenticatedConnection({ done: done }, function( err, result ) {
+        expect(err).not.to.exist;
 
-           util.cleanupSockets(result.done, socketPackage);
-         });
-       });
-     });
-   });
- });
+        util.prepareDownstreamSync(result.username, result.token, function(err, data, fs, socketPackage) {
+          var startSyncMsg = SyncMessage.request.sync;
+          startSyncMsg.content = {path: '/'};
+          util.sendSyncMessage(socketPackage, startSyncMsg, function(msg){
+            msg = util.toSyncMessage(msg);
+
+            expect(msg).to.exist;
+            expect(msg.type).to.equal(SyncMessage.ERROR);
+            expect(msg.name).to.equal(SyncMessage.IMPL);
+            expect(msg.content).to.exist;
+            expect(msg.content.error).to.exist;
+
+            util.cleanupSockets(result.done, socketPackage);
+          });
+        });
+      });
+    });
+  });
+
+  describe('Concurrent syncs', function() {
+    it('should be handled in such a way that the current downstream sync returns an error if another upstream is initiated', function(done) {
+      util.authenticatedConnection({done: done}, function(err, result1) {
+        expect(err).not.to.exist;
+
+        util.authenticatedConnection({username: result1.username}, function(err, result2) {
+          expect(err).not.to.exist;
+
+          util.prepareUpstreamSync('patch', result1.username, result1.token, function(err, data, fs1, socketPackage1) {
+            expect(err).not.to.exist;
+          });
+        });
+      });
+    });
+  });
 });
 
 describe('[Upstream Syncing with Websockets]', function(){
